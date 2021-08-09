@@ -1,0 +1,180 @@
+#Called from within acces, contains unittest debugging
+#=======================================================================================
+#Jorisbo@hotmail.com
+#Versioning see info.txt
+#Best viewed in notepad++ syntax C# or normal text
+#=======================================================================================
+
+#From within access and access translations we set access to certain highways, but all these algortims could easily give false results
+#These unittest look from the tags up back to the results calculated and picks out typical configurations to check.
+
+#Category 1 : Fixed bad tagging
+foot	= no  &  jbmfoot = yes & jbm_route_hiking = * 											{add dbgmsgverbose = 'Verbose (1.01) - Foot added because of walking route' ; add dbgcategory = 'fixed osm tagging'}
+bicycle	 = no  &  jbmbicycle = yes & jbm_route_bicycle = * 								{add dbgmsgverbose = 'Verbose (1.02) - Bicycle added because of bicycle route' ; add dbgcategory = 'fixed osm tagging'}
+highway ~ '(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|)' & jbmunaccessible = true &
+	!(
+	access = no
+	)
+																																	{add dbgmsgverbose = 'Warning (1.03) - Highway is unaccessible'  ; add dbgcategory = 'warning'}
+
+#Category 2: Nothing specified, considered to be unknown, should fall back on defaults and the highwaytype
+foot != * & access !=* & highway ~ '(primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|service|cycleway|track|path|footway|bridelway|steps)' 
+	& mkgmap:foot = no	&
+	!(
+		barrier = * |
+		sidewalk = separate
+	)																																{add dbgmsgerror = 'Error (2.01) - Foot should be allowed'}
+
+foot != * & access !=* & highway ~ '(trunk|trunk_link|motorway|motorway_link)' 
+	& mkgmap:foot = yes &
+	!(
+		jbm_route_hiking = *
+	)																																{add dbgmsgerror = 'Error (2.02) - Foot should not be allowed on motorway'}
+
+bicycle != * & access !=* & highway ~ '(primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|service|cycleway|path|footway|bridelway)' 
+	& mkgmap:bicycle = no &
+	!(
+	barrier = * |
+	sac_scale = * |
+	!(mtb:scale ~ '(0|0\+|0\-)')
+	)																																{add dbgmsgerror = 'Error (2.03) - Bicycle should be allowed'}
+
+bicycle != * & access !=* & highway ~ '(track|path|footway)' 
+	& mkgmap:bicycle = yes & 
+	(sac_scale = * | mtb:scale ~ '([1-6]|[1-6][\+|\-])') &
+	!( 
+	cycleway = track |
+	jbm_route_bicycle = * |
+	tracktype = grade1 |
+	mtb:scale ~ '(0|0\+|0\-)'|
+	bike=yes
+	)																																{add dbgmsgerror = 'Error (2.04) - Bicycle should not be allowed on track or path or footway when mtb'}
+
+mtb:scale:uphill='([2-5])' & bicycle != * &
+	!( 
+	cycleway = track |
+	jbm_route_bicycle = * |
+	tracktype = grade1 |
+	bike=yes
+	)																																{add dbgmsgerror = 'Error (2.05) - Bicycle should not be allowed on track or path or footway when mtb'}
+
+
+bicycle != * & access !=* & highway ~ '(trunk|trunk_link|motorway|motorway_link)' 
+	& mkgmap:bicycle = yes &
+	!(
+		jbm_route_bicycle = * |
+		cycleway ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:left ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:right ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:both ~ '.*(lane|line|track|segregated|busway).*' |
+		bike=yes
+	)																																{add dbgmsgerror = 'Error (2.06) - Bicycle should not be allowed on motorway'}
+
+
+bicycle != * & access !=* & (highway = track & tracktype = grade1) 
+																& mkgmap:bicycle = no							{add dbgmsgerror = 'Error (2.07) - Bicycle should be allowed on track of type grade1'}
+																					
+taxi != * & psv ! & access !=* & highway ~ '(motorway|motorway_link|trunk|trunk_link|primary|primary_link|tertiary|tertiary_link|secondary|secondary_link|unclassified|residential|service|bus_guideway)' 
+																& (mkgmap:bus = no | mkgmap:taxi=no)
+																																	{add dbgmsgerror = 'Error (2.08) - Taxi or Bus should be allowed'}
+bicycle != * & access !=* & highway ~ '(steps|bus_guideway)' &
+	!(
+		jbm_route_bicycle = * |
+		cycleway ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:left ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:right ~ '.*(lane|line|track|segregated|busway).*' |
+		cycleway:both ~ '.*(lane|line|track|segregated|busway).*'
+	)	
+																& mkgmap:bicycle = yes							{add dbgmsgerror = 'Error (2.09) - Bicycle should not be allowed on steps or bus guideway'}
+
+bicycle != * & access !=* & highway = steps &
+		(ramp:bicycle=yes | ramp=yes | ramp:wheelchair=yes)
+																& mkgmap:bicycle = no							{add dbgmsgerror = 'Error (2.10) - Bicycle should be allowed on steps with a ramp'}
+
+motor_vehicle !=* & vehicle !=* & motorcar !=* & access !=*  & highway ~ '(steps)' 
+																& (mkgmap:car = yes | mkgmap:truck = yes | mkgmap:taxi = yes)
+																																	{add dbgmsgerror = 'Error (2.11) - Vehicles should not be allowed on steps'}
+taxi != * & psv !=* & access !=* & highway ~ '(bus_guideway)'			
+																& (mkgmap:bus = no & mkgmap:taxi=no)
+																																	{add dbgmsgerror = 'Error (2.12) - Bus or taxi should be allowed on bus guideway'}
+
+#Category 3 : General access specified as no accsess the specific values should fall back on general
+foot != * & access ~ '(no|private)' & mkgmap:foot = yes	&
+!(
+	jbm_route_hiking = * |
+	toll=yes
+	)
+																																	{add dbgmsgerror = 'Error (3.01) - Foot allowed but general access says no'}
+
+bicycle != * & access ~ '(no|private)' & mkgmap:bicycle = yes &
+ !(
+	jbm_route_bicycle = * |
+	cycleway ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:left ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:right ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:both ~ '.*(lane|line|track|segregated|busway).*' |
+	toll = yes
+)																																	{add dbgmsgerror = 'Error (3.02) - Bicycle allowed but general access says no'}
+
+mkgmap:toll = yes & mkgmap:car = no & mkgmap:bus = no & mkgmap:truck = no & highway ~ '(motorway|motorway_link|trunk|trunk_link|primary|primary_link)' & 
+!(
+motor_vehicle = no | access ~ '(no|private)' | hgv = no | psv = no
+)
+																																	{add dbgmsgerror = 'Warning (3.03) - No car or bus or hgv allowed on toll-road'}
+
+#Category 4 : Specified as no-access but ended up with access considered an error
+foot	~ '(no|private)' & mkgmap:foot = yes & !(jbm_route_hiking = *)	 			{add dbgmsgerror = 'Error (4.01) - Foot allowed and should not'}
+
+bicycle	 ~ '(no|private)' & mkgmap:bicycle = yes & 
+!(
+	jbm_route_bicycle = * |
+	cycleway ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:left ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:right ~ '.*(lane|line|track|segregated|busway).*' |
+	cycleway:both ~ '.*(lane|line|track|segregated|busway).*'
+)																																	 										{add dbgmsgerror = 'Error (4.02) - Bicycle allowed and should not'}
+motorcar ~ '(no|private)' & vehicle !=* & motor_vehicle !=* & car !=*  & mkgmap:car = yes 				{add dbgmsgerror = 'Error (4.03) - Car allowed and should not'}
+motor_vehicle ~ '(no|private)' & vehicle !=* & motorcar !=* & car !=*  & mkgmap:car = yes 				{add dbgmsgerror = 'Error (4.04) - Car allowed and should not'}
+vehicle ~ '(no|private)' & motor_vehicle !=* & motorcar !=* & car !=* & mkgmap:car = yes 					{add dbgmsgerror = 'Error (4.05) - Car allowed and should not'}
+taxi ~ '(no|private)' & mkgmap:taxi = yes 																										{add dbgmsgerror = 'Error (4.06) - Taxi allowed and should not'}
+psv ~ '(no|private)' & mkgmap:bus = yes 																										{add dbgmsgerror = 'Error (4.07) - Bus  allowed and should not'}
+(truck ~ '(no|private)' | hgv ~ '(no|private)') & mkgmap:truck = yes 															{add dbgmsgerror = 'Error (4.08) - Truck allowed and should not'}
+emergency ~ '(no|private)'& mkgmap:emergency = yes 																				{add dbgmsgerror = 'Error (4.09) - Emergency allowed and should not'}
+delivery ~ '(no|private)' & mkgmap:delivery = yes 																						{add dbgmsgerror = 'Error (4.10) - Delivery allowed and should not'}
+
+#Category 5 : Specified as yes but ended up with no access
+foot	~ '(yes|permissive|designated|official|destination)' & mkgmap:foot = no 																						{add dbgmsgerror = 'Error (5.01) - Foot not allowed and should be'}
+bicycle	~ '(yes|permissive|designated|official|destination)' & mkgmap:bicycle = no																				{add dbgmsgerror = 'Error (5.02) - Bicycle not allowed and should be'}
+motorcar ~ '(yes|permissive|designated|official|destination)' & vehicle !=* & motor_vehicle !=* & mkgmap:car = no 					{add dbgmsgerror = 'Error (5.03) - Car not allowed and should be'}
+motor_vehicle ~ '(yes|permissive|designated|official|destination)' & vehicle !=* & motorcar !=* & car !=* & mkgmap:car = no 	{add dbgmsgerror = 'Error (5.04) - Car not allowed and should be'}
+vehicle ~ '(yes|permissive|designated|official|destination)' & motor_vehicle !=* & motorcar !=* & mkgmap:car = no 					{add dbgmsgerror = 'Error (5.05) - Car not allowed and should be'}
+taxi ~ '(yes|permissive|designated|official|destination)' & mkgmap:taxi = no 																						{add dbgmsgerror = 'Error (5.06) - Taxi not allowed and should be'}
+psv ~ '(yes|permissive|designated|official|destination)'  & mkgmap:bus = no 																						{add dbgmsgerror = 'Error (5.07) - Bus  not allowed and should be'}
+truck ~ '(yes|permissive|designated|official|destination)'& mkgmap:truck = no 																						{add dbgmsgerror = 'Error (5.08) - Truck not allowed and should be'}
+hgv ~ '(yes|permissive|designated|official|destination)' & mkgmap:truck = no 																						{add dbgmsgerror = 'Error (5.09) - Truck not allowed and should be'}
+emergency ~ '(yes|permissive|designated|official|destination)'  & mkgmap:emergency = no 																{add dbgmsgerror = 'Error (5.10) - Emergency not allowed and should be'}
+delivery ~ '(yes|permissive|designated|official|destination)'  & mkgmap:delivery = no 																			{add dbgmsgerror = 'Error (5.11) - Delivery not allowed and should be'}
+
+#Category 6 : Reason for editing osm data
+mkgmap:foot = no & jbm_route_hiking = true																									{add dbgmsgerror = 'Error (6.01) - No foot allowed on hiking route'}
+mkgmap:bicycle = no & jbm_route_bicycle = true																							{add dbgmsgerror = 'Error (6.02) - No bicycle allowed on bicycle route'}
+mkgmap:bicycle = no & (bicycle_road = yes	| cycle_street = yes) &
+	!(
+	bicycle = use_sidepath
+	)
+																																												{add dbgmsgerror = 'Error (6.03) - No bicycle allowed on bicycle road'}
+
+mkgmap:foot = no & !(access ~ '(no|private|military)') & !(foot  ~ '(no|private)') & sidewalk ~ '(left|right|both|yes)' & 
+																											!(highway ~ '(trunk|motorway).*')			{add dbgmsgerror = 'Error (6.04) - No foot allowed on highway with sidewalk'}
+mkgmap:foot = no & !(access ~ '(no|private|military)') & !(foot  ~ '(no|private)')  & sidewalk:left =yes 		& 
+																											!(highway ~ '(trunk|motorway).*')			{add dbgmsgerror = 'Error (6.05) - No foot allowed on highway with sidewalk'}
+mkgmap:foot = no & !(access ~ '(no|private|military)') & !(foot  ~ '(no|private)')  & sidewalk:right =yes 	& 
+																											!(highway ~ '(trunk|motorway).*')			{add dbgmsgerror = 'Error (6.06) - No foot allowed on highway with sidewalk'}
+mkgmap:foot = no & !(access ~ '(no|private|military)') & !(foot  ~ '(no|private)')  & sidewalk:both =yes 	& 
+																											!(highway ~ '(trunk|motorway).*')			{add dbgmsgerror = 'Error (6.07) - No foot allowed on highway with sidewalk'}
+
+
+#End unittesting / do some cleanup
+(dbgmsgerror = * | dbgmsgwarning = * | dbgmsgverbose = *) {add dbgcategory = 'debug - access unittest failed'}
+()		{delete jbmtransporttype ; delete jbmtransporttypevalue; delete jbmaccesscategory}
+
