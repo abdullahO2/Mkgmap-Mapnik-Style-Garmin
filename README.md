@@ -1,2 +1,2 @@
-# Mkgmap-Mapnik-Style-Garmin
-Arabic Custom mkgmap style forkrd from Jbm
+Arabic Custom mkgmap style forkrd from Jorisbo
+translated into Arabic and modified by Abdullah Abdulrhman
